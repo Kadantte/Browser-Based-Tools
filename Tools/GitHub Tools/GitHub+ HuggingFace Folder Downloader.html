@@ -1,0 +1,1653 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Git & Hugging Face Folder Downloader</title>
+    
+    <!-- JSZip for browsers without File System Access API support -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+    <style>
+        /* ==========================================
+           NATIVE CSS VARIABLES & THEME
+           ========================================== */
+        :root {
+            /* Colors */
+            --bg-body: #020617;        /* slate-950 */
+            --bg-surface: #0f172a;     /* slate-900 */
+            --bg-elevated: #1e293b;    /* slate-800 */
+            --bg-hover: rgba(30, 41, 59, 0.6);
+            --bg-input: #020617;
+            
+            --border-subtle: rgba(30, 41, 59, 0.5);
+            --border-default: #1e293b;
+            --border-focus: #6366f1;
+            
+            --text-primary: #f8fafc;   /* slate-50 */
+            --text-secondary: #cbd5e1; /* slate-300 */
+            --text-muted: #94a3b8;     /* slate-400 */
+            --text-faint: #64748b;     /* slate-500 */
+            
+            --brand-main: #6366f1;     /* indigo-500 */
+            --brand-hover: #4f46e5;
+            --brand-light: #818cf8;
+            
+            --success-main: #10b981;   /* emerald-500 */
+            --success-hover: #059669;
+            --success-light: #34d399;
+            
+            --danger-main: #fb7185;    /* rose-400 */
+            --warning-main: #fbbf24;   /* amber-400 */
+
+            /* Typography */
+            --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        }
+
+        /* ==========================================
+           GLOBAL RESETS & BASE
+           ========================================== */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-primary);
+            font-family: var(--font-sans);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        ::selection {
+            background-color: var(--brand-main);
+            color: white;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--bg-surface);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+
+        /* ==========================================
+           UTILITIES & LAYOUT
+           ========================================== */
+        .flex { display: flex; }
+        .flex-col { flex-direction: column; }
+        .items-center { align-items: center; }
+        .justify-between { justify-content: space-between; }
+        .justify-center { justify-content: center; }
+        .justify-end { justify-content: flex-end; }
+        .flex-grow { flex-grow: 1; }
+        .flex-shrink-0 { flex-shrink: 0; }
+        
+        .gap-1 { gap: 0.25rem; }
+        .gap-2 { gap: 0.5rem; }
+        .gap-3 { gap: 0.75rem; }
+        .gap-4 { gap: 1rem; }
+        .gap-6 { gap: 1.5rem; }
+        
+        .w-full { width: 100%; }
+        .max-w-7xl { max-width: 80rem; margin-left: auto; margin-right: auto; }
+        .min-h-screen { min-height: 100vh; }
+        
+        .hidden { display: none !important; }
+        .relative { position: relative; }
+        .absolute { position: absolute; }
+        .overflow-hidden { overflow: hidden; }
+        .overflow-y-auto { overflow-y: auto; }
+        .truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        .text-xs { font-size: 0.75rem; line-height: 1rem; }
+        .text-sm { font-size: 0.875rem; line-height: 1.25rem; }
+        .text-base { font-size: 1rem; line-height: 1.5rem; }
+        .text-lg { font-size: 1.125rem; line-height: 1.75rem; }
+        .text-xl { font-size: 1.25rem; line-height: 1.75rem; }
+        
+        .font-mono { font-family: var(--font-mono); }
+        .font-semibold { font-weight: 600; }
+        .font-bold { font-weight: 700; }
+        
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+
+        /* ==========================================
+           COMPONENTS
+           ========================================== */
+        /* Header */
+        .app-header {
+            border-bottom: 1px solid var(--border-default);
+            background-color: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(12px);
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            padding: 1rem 1.5rem;
+        }
+
+        .header-icon {
+            padding: 0.625rem;
+            background-color: rgba(79, 70, 229, 0.2);
+            color: var(--brand-light);
+            border-radius: 0.75rem;
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            display: flex;
+            align-items: center;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            border-radius: 0.5rem;
+            transition: all 0.2s;
+            cursor: pointer;
+            border: none;
+            font-family: inherit;
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .btn-outline {
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+            background-color: var(--bg-elevated);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-default);
+        }
+        .btn-outline:hover:not(:disabled) { background-color: #334155; }
+        
+        .btn-primary {
+            width: 100%;
+            padding: 0.875rem;
+            background-color: var(--brand-main);
+            color: white;
+            font-weight: 600;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 14px 0 rgba(99, 102, 241, 0.2);
+        }
+        .btn-primary:hover:not(:disabled) { background-color: var(--brand-hover); }
+
+        .btn-success {
+            width: 100%;
+            padding: 0.875rem;
+            background-color: var(--success-main);
+            color: white;
+            font-weight: 700;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 14px 0 rgba(16, 185, 129, 0.15);
+        }
+        .btn-success:hover:not(:disabled) { background-color: var(--success-hover); }
+
+        .btn-danger-outline {
+            width: 100%;
+            padding: 0.625rem;
+            background-color: rgba(244, 63, 94, 0.1);
+            color: var(--danger-main);
+            border: 1px solid rgba(244, 63, 94, 0.2);
+            font-weight: 700;
+            font-size: 0.75rem;
+        }
+        .btn-danger-outline:hover:not(:disabled) {
+            background-color: rgba(244, 63, 94, 0.2);
+            border-color: rgba(244, 63, 94, 0.4);
+        }
+
+        /* Cards & Containers */
+        .main-layout {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            padding: 1rem;
+        }
+        .col-left, .col-right {
+            width: 100%;
+        }
+        @media (min-width: 640px) { .main-layout { padding: 1.5rem; } }
+        @media (min-width: 1024px) { 
+            .main-layout { padding: 2rem; flex-direction: row; align-items: stretch; } 
+            .col-left { width: 41.666667%; flex-shrink: 0; }
+            .col-right { flex: 1; min-width: 0; }
+        }
+
+        .card {
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-default);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+            position: relative;
+        }
+        
+        .card-header-gradient {
+            position: absolute; top: 0; left: 0; width: 100%; height: 4px;
+            background: linear-gradient(to right, #06b6d4, var(--brand-main), #a855f7);
+        }
+
+        /* Inputs */
+        .input-group label {
+            display: block;
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .input-field {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background-color: var(--bg-input);
+            border: 1px solid var(--border-default);
+            border-radius: 0.75rem;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+        }
+        .input-field:focus {
+            outline: none;
+            border-color: var(--border-focus);
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+        }
+        .input-field::placeholder { color: var(--text-faint); }
+
+        /* Custom Checkbox */
+        input[type="checkbox"] {
+            appearance: none;
+            width: 1rem;
+            height: 1rem;
+            border: 1px solid var(--border-default);
+            border-radius: 0.25rem;
+            background-color: var(--bg-input);
+            cursor: pointer;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        input[type="checkbox"]:checked {
+            background-color: var(--brand-main);
+            border-color: var(--brand-main);
+        }
+        input[type="checkbox"]:checked::after {
+            content: "";
+            width: 4px;
+            height: 8px;
+            border: solid white;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+            margin-bottom: 2px;
+        }
+        input[type="checkbox"]:indeterminate {
+            background-color: var(--brand-main);
+            border-color: var(--brand-main);
+        }
+        input[type="checkbox"]:indeterminate::after {
+            content: "";
+            width: 8px;
+            height: 2px;
+            background-color: white;
+        }
+
+        /* Radio Mode Selector */
+        .radio-card {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            padding: 0.875rem;
+            border: 1px solid var(--border-subtle);
+            background-color: rgba(30, 41, 59, 0.5);
+            border-radius: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+        .radio-card:hover:not(.disabled) { background-color: var(--bg-elevated); }
+        .radio-card.disabled { opacity: 0.4; cursor: not-allowed; }
+        
+        .radio-card input[type="radio"] {
+            margin-top: 0.25rem;
+            accent-color: var(--brand-main);
+            cursor: pointer;
+        }
+        .radio-card input[type="radio"][value="folder"] { accent-color: var(--success-main); }
+        
+        .radio-border {
+            position: absolute; inset: 0; border: 2px solid transparent; border-radius: 0.75rem; pointer-events: none; transition: border-color 0.2s;
+        }
+        input[type="radio"]:checked + .radio-content .radio-border {
+            border-color: var(--success-main);
+            background-color: rgba(16, 185, 129, 0.05);
+        }
+        input[type="radio"][value="zip"]:checked + .radio-content .radio-border {
+            border-color: var(--brand-main);
+            background-color: rgba(99, 102, 241, 0.05);
+        }
+
+        /* Progress Bar */
+        .progress-track {
+            width: 100%;
+            background-color: var(--bg-input);
+            border-radius: 9999px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(to right, var(--brand-main), var(--success-main));
+            transition: width 0.3s ease;
+        }
+
+        /* Tree View Elements */
+        .tree-header {
+            border-bottom: 1px solid var(--border-default);
+            font-size: 0.625rem;
+            color: var(--text-muted);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            background-color: rgba(15, 23, 42, 0.4);
+            backdrop-filter: blur(4px);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            padding: 0.75rem 1rem;
+        }
+        
+        .tree-row {
+            border-bottom: 1px solid rgba(15, 23, 42, 0.3);
+            transition: background-color 0.15s;
+        }
+        .tree-row-dir { background-color: rgba(2, 6, 23, 0.1); }
+        .tree-row-dir:hover { background-color: rgba(15, 23, 42, 0.4); }
+        .tree-row-file { background-color: rgba(2, 6, 23, 0.05); }
+        .tree-row-file:hover { background-color: rgba(15, 23, 42, 0.2); }
+
+        .svg-icon {
+            width: 1em;
+            height: 1em;
+            fill: currentColor;
+            vertical-align: middle;
+        }
+
+        /* Animations */
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .animate-spin { animation: spin 1s linear infinite; }
+        
+        @keyframes bounce { 
+            0%, 100% { transform: translateY(-25%); animation-timing-function: cubic-bezier(0.8,0,1,1); }
+            50% { transform: none; animation-timing-function: cubic-bezier(0,0,0.2,1); }
+        }
+        .animate-bounce { animation: bounce 1s infinite; }
+        
+        /* Modals */
+        .modal-overlay {
+            position: fixed; inset: 0; z-index: 50;
+            display: flex; items-center; justify-content: center;
+            background-color: rgba(2, 6, 23, 0.8);
+            backdrop-filter: blur(4px);
+            padding: 1rem;
+        }
+        .modal-content {
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-default);
+            border-radius: 1rem;
+            width: 100%;
+            max-width: 32rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- TOP HEADER BAR -->
+    <header class="app-header">
+        <div class="max-w-7xl flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="header-icon" id="icon-header"></div>
+                <div>
+                    <h1 class="text-xl font-bold text-primary flex items-center gap-2">
+                        Repo Folder Downloader
+                    </h1>
+                    <p class="text-xs" style="color: var(--text-muted)">Download nested repository folders directly to your local file system</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <span id="api-status" style="padding: 0.25rem 0.625rem; font-size: 0.75rem; border-radius: 9999px; background-color: rgba(16, 185, 129, 0.1); color: var(--success-light); border: 1px solid rgba(16, 185, 129, 0.2);" class="flex items-center gap-2">
+                    <span style="height: 0.5rem; width: 0.5rem; border-radius: 50%; background-color: var(--success-light);" class="animate-pulse"></span> Ready
+                </span>
+                <button onclick="toggleSettingsModal()" class="btn btn-outline">
+                    <span id="icon-settings"></span> Settings
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN BODY -->
+    <main class="flex-grow max-w-7xl w-full main-layout">
+        
+        <!-- LEFT CONTROL COLUMN -->
+        <div class="col-left flex flex-col gap-6">
+            
+            <!-- URL SCANNER CARD -->
+            <section class="card">
+                <div class="card-header-gradient"></div>
+                <h2 class="text-lg font-semibold text-primary mb-4 flex items-center gap-2">
+                    <span id="icon-link" style="color: var(--brand-light)"></span> Repo Details
+                </h2>
+                
+                <div class="flex flex-col gap-4">
+                    <div class="input-group">
+                        <label for="repo-url">Repository Folder URL</label>
+                        <input type="text" id="repo-url" 
+                               placeholder="e.g., https://huggingface.co/microsoft/Phi-4/tree/main/gpu"
+                               class="input-field">
+                    </div>
+
+                    <button id="scan-btn" onclick="startRepositoryScan()" class="btn btn-primary">
+                        <span id="icon-scan"></span> Scan Folder Structure
+                    </button>
+                </div>
+            </section>
+
+            <!-- DOWNLOAD MANAGER CARD -->
+            <section id="download-panel" class="card flex-grow flex flex-col justify-between hidden">
+                <div>
+                    <h2 class="text-lg font-semibold text-primary mb-2 flex items-center justify-between">
+                        <span class="flex items-center gap-2">
+                            <span id="icon-download" style="color: var(--brand-light)"></span> Download Controls
+                        </span>
+                        <span id="selected-count-badge" style="padding: 0.125rem 0.5rem; font-size: 0.75rem; background-color: var(--bg-elevated); color: var(--text-secondary); border-radius: 9999px; border: 1px solid var(--border-default);">0 files</span>
+                    </h2>
+                    <p class="text-xs" style="color: var(--text-muted); margin-bottom: 1rem;">Select your preferred output method. Direct-to-Folder is highly recommended for large models.</p>
+
+                    <!-- DIRECTORY ACCESS DETECTION BADGE -->
+                    <div id="dir-api-unsupported" class="hidden" style="margin-bottom: 1rem; padding: 0.875rem; background-color: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: 0.75rem; color: var(--warning-main); font-size: 0.75rem; display: flex; align-items: flex-start; gap: 0.625rem;">
+                        <span id="icon-warning" style="font-size: 1rem; margin-top: 0.125rem;"></span>
+                        <div>
+                            <span class="font-bold">Direct Saving Unsupported:</span> Your browser does not support the File System Access API. You must use "Download then ZIP".
+                        </div>
+                    </div>
+
+                    <!-- DOWNLOAD MODE TOGGLES -->
+                    <div class="flex flex-col gap-3" style="margin-bottom: 1.25rem;">
+                        <!-- Mode: Folder -->
+                        <label id="label-mode-folder" class="radio-card group">
+                            <input type="radio" name="download_mode" value="folder" checked onchange="updateModeVisuals()">
+                            <div class="radio-content flex-grow">
+                                <div class="text-sm font-bold text-primary transition" style="margin-bottom: 0.25rem;">
+                                    <span id="icon-folder-plus" style="color: var(--text-muted); margin-right: 0.375rem;"></span> Download to Folder (Direct)
+                                </div>
+                                <div style="font-size: 0.625rem; color: var(--text-muted);">Saves folder structures recursively directly to disk as they stream. (Chromium browsers only)</div>
+                                <div class="radio-border"></div>
+                            </div>
+                        </label>
+                        
+                        <!-- Mode: ZIP -->
+                        <label id="label-mode-zip" class="radio-card group">
+                            <input type="radio" name="download_mode" value="zip" onchange="updateModeVisuals()">
+                            <div class="radio-content flex-grow">
+                                <div class="text-sm font-bold text-primary transition" style="margin-bottom: 0.25rem;">
+                                    <span id="icon-zip" style="color: var(--text-muted); margin-right: 0.375rem;"></span> Download then ZIP
+                                </div>
+                                <div style="font-size: 0.625rem; color: var(--text-muted);">Downloads all files into system RAM first, then bundles them into a single .zip file.</div>
+                                <div class="radio-border"></div>
+                            </div>
+                        </label>
+                    </div>
+
+                    <!-- START ACTION -->
+                    <button id="start-download-btn" onclick="startSelectedDownloadMode()" class="btn btn-success">
+                        <span id="icon-play"></span> Start Download
+                    </button>
+                </div>
+
+                <!-- DOWNLOAD MONITOR -->
+                <div id="download-monitor" class="hidden" style="margin-top: 1.5rem; border-top: 1px solid var(--border-subtle); padding-top: 1.5rem;">
+                    <div class="flex items-center justify-between text-xs font-semibold mb-2">
+                        <span id="download-status-text" style="color: var(--brand-light)">Downloading files...</span>
+                        <span id="download-progress-percent" style="color: var(--text-secondary)">0%</span>
+                    </div>
+                    
+                    <div class="progress-track" style="height: 0.5rem; margin-bottom: 0.875rem;">
+                        <div id="download-progress-bar" class="progress-fill"></div>
+                    </div>
+
+                    <div class="flex gap-3 text-center" style="margin-bottom: 1rem;">
+                        <div class="flex-grow" style="padding: 0.5rem; background-color: rgba(2, 6, 23, 0.6); border-radius: 0.5rem; border: 1px solid var(--border-default);">
+                            <div style="font-size: 0.625rem; color: var(--text-faint); text-transform: uppercase;">Downloaded</div>
+                            <div id="stats-downloaded" class="text-sm font-bold" style="color: var(--text-secondary)">0 / 0</div>
+                        </div>
+                        <div class="flex-grow" style="padding: 0.5rem; background-color: rgba(2, 6, 23, 0.6); border-radius: 0.5rem; border: 1px solid var(--border-default);">
+                            <div style="font-size: 0.625rem; color: var(--text-faint); text-transform: uppercase;">Transfer Rate</div>
+                            <div id="stats-speed" class="text-sm font-bold" style="color: var(--text-secondary)">0 KB/s</div>
+                        </div>
+                    </div>
+
+                    <button id="cancel-download-btn" onclick="cancelActiveDownloads()" class="btn btn-danger-outline" disabled>
+                        <span id="icon-stop"></span> Cancel Downloading
+                    </button>
+                </div>
+            </section>
+
+        </div>
+
+        <!-- RIGHT CONTENT COLUMN (FILE CONTAINER) -->
+        <div class="col-right flex flex-col">
+            
+            <section class="card flex-grow flex flex-col" style="min-height: 550px;">
+                <div class="flex items-center justify-between flex-shrink-0" style="margin-bottom: 1rem;">
+                    <h2 class="text-lg font-semibold text-primary flex items-center gap-2">
+                        <span id="icon-list" style="color: var(--brand-light)"></span> Discovered Files
+                    </h2>
+                    <div id="file-selection-controls" class="flex items-center gap-2 text-xs hidden">
+                        <button onclick="toggleAllFiles(true)" style="background: none; border: none; color: var(--brand-light); cursor: pointer;">Select All</button>
+                        <span style="color: var(--text-faint)">|</span>
+                        <button onclick="toggleAllFiles(false)" style="background: none; border: none; color: var(--brand-light); cursor: pointer;">Deselect All</button>
+                    </div>
+                </div>
+
+                <!-- FILE LIST INNER SHELF -->
+                <div class="flex-grow flex flex-col relative overflow-hidden" style="background-color: var(--bg-body); border-radius: 0.75rem; border: 1px solid var(--border-default); min-height: 350px;">
+                    
+                    <!-- EMPTY STATE -->
+                    <div id="files-empty-state" class="absolute flex flex-col items-center justify-center text-center" style="inset: 0; padding: 2rem;">
+                        <div class="animate-bounce" style="padding: 1rem; background-color: var(--bg-surface); color: var(--text-faint); border-radius: 50%; border: 1px solid var(--border-default); margin-bottom: 1rem;">
+                            <span id="icon-empty-folder" style="font-size: 1.875rem;"></span>
+                        </div>
+                        <h3 class="text-sm font-medium" style="color: var(--text-secondary)">No repo scanned yet</h3>
+                        <p class="text-xs" style="color: var(--text-faint); max-width: 20rem; margin-top: 0.25rem;">Input a GitHub or Hugging Face folder path on the left to resolve and inspect all nested files.</p>
+                    </div>
+
+                    <!-- LOADING STATE -->
+                    <div id="files-loading-state" class="absolute hidden flex flex-col items-center justify-center text-center" style="inset: 0; background-color: rgba(2, 6, 23, 0.95); padding: 2rem; z-index: 20;">
+                        <div class="relative" style="width: 3rem; height: 3rem; margin-bottom: 1rem;">
+                            <div class="absolute" style="inset: 0; border-radius: 50%; border: 4px solid var(--border-default);"></div>
+                            <div class="absolute animate-spin" style="inset: 0; border-radius: 50%; border: 4px solid transparent; border-top-color: var(--brand-main);"></div>
+                        </div>
+                        <h3 class="text-sm font-medium" style="color: var(--text-secondary)">Resolving Repository Tree...</h3>
+                        <p id="scanning-progress-log" class="text-xs" style="color: var(--text-faint); margin-top: 0.25rem;">Contacting repository endpoints</p>
+                    </div>
+
+                    <!-- ACTIVE FILE TREE CONTAINER -->
+                    <div id="files-list-container" class="hidden flex-grow flex flex-col overflow-hidden h-0">
+                        <!-- Tree Headers -->
+                        <div class="tree-header flex items-center justify-between flex-shrink-0">
+                            <div class="flex items-center gap-3">
+                                <input type="checkbox" id="master-select" onchange="toggleMasterCheckbox(this)">
+                                <span>Path / Filename</span>
+                            </div>
+                            <div class="flex items-center gap-4" style="padding-right: 1rem;">
+                                <span style="width: 5rem; text-align: right;">Size</span>
+                                <span style="width: 6rem; text-align: right;">Status</span>
+                            </div>
+                        </div>
+                        <!-- Scrollable Tree View -->
+                        <div id="files-tree-root" class="flex-grow overflow-y-auto text-xs" style="color: var(--text-secondary);">
+                            <!-- Appended dynamically -->
+                        </div>
+                    </div>
+                </div>
+
+                <div id="scanned-summary" class="hidden flex-shrink-0 flex justify-between text-xs" style="margin-top: 1rem; padding: 0.75rem; background-color: rgba(2, 6, 23, 0.4); border-radius: 0.75rem; border: 1px solid var(--border-subtle); color: var(--text-muted);">
+                    <span>Total Discovered: <strong id="summary-total-files" style="color: var(--text-secondary)">0</strong> files</span>
+                    <span>Total Selected Size: <strong id="summary-total-size" style="color: var(--text-secondary)">0 Bytes</strong></span>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <!-- LOG TERMINAL PANEL -->
+    <section class="max-w-7xl w-full" style="padding: 0 1rem 1rem 1rem; margin-left: auto; margin-right: auto;">
+        <div style="background-color: var(--bg-surface); border: 1px solid var(--border-default); border-radius: 1rem; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);">
+            <div class="flex items-center justify-between" style="background-color: var(--bg-body); padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border-default);">
+                <div class="flex items-center gap-2">
+                    <span class="flex gap-1">
+                        <span style="width: 0.75rem; height: 0.75rem; border-radius: 50%; background-color: rgba(244, 63, 94, 0.8);"></span>
+                        <span style="width: 0.75rem; height: 0.75rem; border-radius: 50%; background-color: rgba(245, 158, 11, 0.8);"></span>
+                        <span style="width: 0.75rem; height: 0.75rem; border-radius: 50%; background-color: rgba(16, 185, 129, 0.8);"></span>
+                    </span>
+                    <span class="text-xs font-mono" style="color: var(--text-muted); margin-left: 0.5rem;">Console Operations Log</span>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="clearConsoleLog()" style="padding: 0.25rem 0.625rem; font-size: 0.625rem; background-color: var(--bg-elevated); color: var(--text-secondary); border-radius: 0.25rem; border: 1px solid var(--border-default); cursor: pointer;">
+                        Clear
+                    </button>
+                    <button onclick="copyConsoleLog()" style="padding: 0.25rem 0.625rem; font-size: 0.625rem; background-color: var(--bg-elevated); color: var(--text-secondary); border-radius: 0.25rem; border: 1px solid var(--border-default); cursor: pointer;">
+                        Copy
+                    </button>
+                </div>
+            </div>
+            <div id="console-log" class="font-mono text-xs" style="padding: 1rem; background-color: var(--bg-body); color: var(--text-secondary); height: 10rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.375rem; scroll-behavior: smooth;">
+                <div style="color: var(--text-faint);">// Welcome! Put in a GitHub or Hugging Face folder path to begin operations.</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer class="text-center text-xs" style="border-top: 1px solid var(--border-default); padding: 1.5rem 0; color: var(--text-faint); background-color: var(--bg-body);">
+        <div class="max-w-7xl" style="padding: 0 1rem;">
+            <p>Repo Folder Downloader. Generated with premium dark-mode styling and offline compatibility.</p>
+        </div>
+    </footer>
+
+    <!-- SETTINGS MODAL -->
+    <div id="settings-modal" class="modal-overlay hidden">
+        <div class="modal-content relative overflow-hidden flex flex-col">
+            <div class="flex items-center justify-between" style="padding: 1.5rem; border-bottom: 1px solid var(--border-default);">
+                <h3 class="text-lg font-bold text-primary flex items-center gap-2">
+                    <span id="icon-gears" style="color: var(--brand-light)"></span> Downloader Settings
+                </h3>
+                <button onclick="toggleSettingsModal()" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.25rem;">
+                    <span id="icon-xmark"></span>
+                </button>
+            </div>
+            
+            <div class="flex flex-col gap-5" style="padding: 1.5rem;">
+                <div class="input-group">
+                    <label for="setting-cors-proxy">CORS Proxy Address</label>
+                    <input type="text" id="setting-cors-proxy" class="input-field">
+                    <p style="font-size: 0.625rem; color: var(--text-faint); margin-top: 0.25rem;">If direct requests fail. Use <code style="background-color: var(--bg-body); padding: 0.125rem; border-radius: 0.25rem; color: var(--brand-light);">https://localhost:5001/?url={TheUrl}</code> or leave empty to fetch directly.</p>
+                </div>
+
+                <div class="input-group">
+                    <label for="setting-concurrent-downloads">Max Concurrent Downloads</label>
+                    <div class="flex items-center gap-3">
+                        <input type="range" id="setting-concurrent-downloads" min="1" max="10" step="1" oninput="updateThreadsLabel(this.value)" style="flex-grow: 1; height: 0.375rem; background-color: var(--bg-body); border-radius: 0.5rem; appearance: none; cursor: pointer; accent-color: var(--brand-main);">
+                        <span id="threads-label" class="font-mono text-center" style="padding: 0.25rem 0.625rem; font-size: 0.75rem; background-color: var(--bg-body); color: var(--brand-light); border-radius: 0.25rem; border: 1px solid var(--border-default); width: 2.5rem;">3</span>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="setting-github-token">GitHub Personal Access Token (PAT)</label>
+                    <input type="password" id="setting-github-token" placeholder="Optional" class="input-field">
+                    <p style="font-size: 0.625rem; color: var(--text-faint); margin-top: 0.25rem;">To avoid GitHub API's standard limit of 60 requests/hour for unauthenticated IPs.</p>
+                </div>
+
+                <div class="input-group">
+                    <label for="setting-hf-token">Hugging Face User Access Token</label>
+                    <input type="password" id="setting-hf-token" placeholder="Optional" class="input-field">
+                    <p style="font-size: 0.625rem; color: var(--text-faint); margin-top: 0.25rem;">Required to access private model repos or private dataset folders.</p>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-3" style="padding: 1.5rem; background-color: var(--bg-body); border-top: 1px solid var(--border-default);">
+                <button onclick="toggleSettingsModal()" class="btn btn-outline" style="font-weight: 600;">Cancel</button>
+                <button onclick="saveSettingsForm()" class="btn btn-primary" style="width: auto; padding: 0.5rem 1.25rem;">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN SYSTEM LOGIC & RUNTIME -->
+    <script>
+        // ==========================================
+        // ICONOGRAPHY SYSTEM (NATIVE SVG)
+        // ==========================================
+        const SVG_ICONS = {
+            'folder-open': '<svg class="svg-icon" viewBox="0 0 512 512"><path d="M64 480H448c35.3 0 64-28.7 64-64V160c0-35.3-28.7-64-64-64H298.5c-17 0-33.3-6.7-45.3-18.7L226.7 50.7c-12-12-28.3-18.7-45.3-18.7H64C28.7 32 0 60.7 0 96V416c0 35.3 28.7 64 64 64z"/></svg>',
+            'sliders': '<svg class="svg-icon" viewBox="0 0 512 512"><path d="M0 416c0 17.7 14.3 32 32 32l54.7 0c12.3 28.3 40.5 48 73.3 48s61-19.7 73.3-48L480 448c17.7 0 32-14.3 32-32s-14.3-32-32-32l-246.7 0c-12.3-28.3-40.5-48-73.3-48s-61 19.7-73.3 48L32 384c-17.7 0-32 14.3-32 32zm128 0a32 32 0 1 1 64 0 32 32 0 1 1 -64 0zM320 256a32 32 0 1 1 64 0 32 32 0 1 1 -64 0zm32-80c-32.8 0-61 19.7-73.3 48L32 224c-17.7 0-32 14.3-32 32s14.3 32 32 32l246.7 0c12.3 28.3 40.5 48 73.3 48s61-19.7 73.3-48l54.7 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-54.7 0c-12.3-28.3-40.5-48-73.3-48zM192 128a32 32 0 1 1 0-64 32 32 0 1 1 0 64zm73.3-64C253 35.7 224.8 16 192 16s-61 19.7-73.3 48L32 64C14.3 64 0 78.3 0 96s14.3 32 32 32l86.7 0c12.3 28.3 40.5 48 73.3 48s61-19.7 73.3-48L480 128c17.7 0 32-14.3 32-32s-14.3-32-32-32L265.3 64z"/></svg>',
+            'link': '<svg class="svg-icon" viewBox="0 0 640 512"><path d="M579.8 267.7c56.5-56.5 56.5-148 0-204.5c-50-50-128.8-56.5-186.3-15.4l-1.6 1.1c-14.4 10.3-17.7 30.3-7.4 44.6s30.3 17.7 44.6 7.4l1.6-1.1c32.1-22.9 76-19.3 103.8 8.6c31.5 31.5 31.5 82.5 0 114l-96 96c-31.5 31.5-82.5 31.5-114 0c-27.9-27.9-31.5-71.8-8.6-103.8l1.1-1.6c10.3-14.4 6.9-34.4-7.4-44.6s-34.4-6.9-44.6 7.4l-1.1 1.6C206.5 251.2 213 330 263 380c56.5 56.5 148 56.5 204.5 0l112.3-112.3zM263 132c-56.5-56.5-148-56.5-204.5 0L-53.8 244.3c-56.5 56.5-56.5 148 0 204.5c50 50 128.8 56.5 186.3 15.4l1.6-1.1c14.4-10.3 17.7-30.3 7.4-44.6s-30.3-17.7-44.6-7.4l-1.6 1.1c-32.1 22.9-76 19.3-103.8-8.6c-31.5-31.5-31.5-82.5 0-114l96-96c31.5-31.5 82.5-31.5 114 0c27.9 27.9 31.5 71.8 8.6 103.8l-1.1 1.6c-10.3 14.4-6.9 34.4 7.4 44.6s34.4 6.9 44.6-7.4l1.1-1.6C433.5 260.8 427 182 377 132L263 132z"/></svg>',
+            'magnifying-glass': '<svg class="svg-icon" viewBox="0 0 512 512"><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"/></svg>',
+            'download': '<svg class="svg-icon" viewBox="0 0 640 512"><path d="M144 480C64.5 480 0 415.5 0 336c0-62.8 40.2-116.2 96.2-135.9c-.1-2.7-.2-5.4-.2-8.1c0-88.4 71.6-160 160-160c59.3 0 111 32.2 138.7 80.2C409.9 102 428.3 96 448 96c53 0 96 43 96 96c0 12.2-2.3 23.8-6.4 34.6C596 238.4 640 290.1 640 352c0 70.7-57.3 128-128 128H144zm79-167l115 115c9.4 9.4 24.6 9.4 33.9 0l115-115c9.4-9.4 9.4-24.6 0-33.9s-24.6-9.4-33.9 0l-74 74V152c0-13.3-10.7-24-24-24s-24 10.7-24 24v200.1l-74-74c-9.4-9.4-24.6-9.4-33.9 0s-9.4 24.6 0 33.9z"/></svg>',
+            'folder-plus': '<svg class="svg-icon" viewBox="0 0 512 512"><path d="M64 480H448c35.3 0 64-28.7 64-64V160c0-35.3-28.7-64-64-64H298.5c-17 0-33.3-6.7-45.3-18.7L226.7 50.7c-12-12-28.3-18.7-45.3-18.7H64C28.7 32 0 60.7 0 96V416c0 35.3 28.7 64 64 64zM288 232v48h48c13.3 0 24 10.7 24 24s-10.7 24-24 24h-48v48c0 13.3-10.7 24-24 24s-24-10.7-24-24v-48h-48c-13.3 0-24-10.7-24-24s10.7-24 24-24h48v-48c0-13.3 10.7-24 24-24s24 10.7 24 24z"/></svg>',
+            'file-zip': '<svg class="svg-icon" viewBox="0 0 384 512"><path d="M0 64C0 28.7 28.7 0 64 0H224V128c0 17.7 14.3 32 32 32H384V448c0 35.3-28.7 64-64 64H64c-35.3 0-64-28.7-64-64V64zm384 64H256V0L384 128zM176 144c0-8.8-7.2-16-16-16s-16 7.2-16 16v32c0 8.8 7.2 16 16 16s16-7.2 16-16V144zm-32 80c0-8.8-7.2-16-16-16s-16 7.2-16 16v32c0 8.8 7.2 16 16 16s16-7.2 16-16V224zm32 80c0-8.8-7.2-16-16-16s-16 7.2-16 16v32c0 8.8 7.2 16 16 16s16-7.2 16-16V304zm-16 80c14.2 0 27.6-3.7 39.4-10.2L179.3 384H144v48c0 8.8 7.2 16 16 16zm64-32c0-35.3-28.7-64-64-64v-32c14.2 0 27.6-3.7 39.4-10.2L179.3 256H144V224c35.3 0 64-28.7 64-64s-28.7-64-64-64H64c-8.8 0-16 7.2-16 16V448c0 8.8 7.2 16 16 16h80c35.3 0 64-28.7 64-64z"/></svg>',
+            'play': '<svg class="svg-icon" viewBox="0 0 384 512"><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg>',
+            'stop': '<svg class="svg-icon" viewBox="0 0 384 512"><path d="M0 128C0 92.7 28.7 64 64 64H320c35.3 0 64 28.7 64 64V384c0 35.3-28.7 64-64 64H64c-35.3 0-64-28.7-64-64V128z"/></svg>',
+            'list': '<svg class="svg-icon" viewBox="0 0 512 512"><path d="M152.1 38.2c9.9 8.9 10.7 24 1.8 33.9l-72 80c-4.4 4.9-10.6 7.8-17.2 7.9s-12.9-2.4-17.6-7L7 113C-2.3 103.6-2.3 88.4 7 79s24.6-9.4 33.9 0l22.1 22.1 55.1-61.2c8.9-9.9 24-10.7 33.9-1.8zm0 160c9.9 8.9 10.7 24 1.8 33.9l-72 80c-4.4 4.9-10.6 7.8-17.2 7.9s-12.9-2.4-17.6-7L7 273c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l22.1 22.1 55.1-61.2c8.9-9.9 24-10.7 33.9-1.8zM224 96c0-17.7 14.3-32 32-32H480c17.7 0 32 14.3 32 32s-14.3 32-32 32H256c-17.7 0-32-14.3-32-32zm0 160c0-17.7 14.3-32 32-32H480c17.7 0 32 14.3 32 32s-14.3 32-32 32H256c-17.7 0-32-14.3-32-32zM160 416c0-17.7 14.3-32 32-32H480c17.7 0 32 14.3 32 32s-14.3 32-32 32H192c-17.7 0-32-14.3-32-32zM48 368a48 48 0 1 1 0 96 48 48 0 1 1 0-96z"/></svg>',
+            'folder': '<svg class="svg-icon" viewBox="0 0 512 512"><path d="M64 480H448c35.3 0 64-28.7 64-64V160c0-35.3-28.7-64-64-64H288c-8.8 0-16.8-3.5-22.6-9.3L192 22.6C186.2 16.8 178.2 13.3 169.4 13.3H64C28.7 13.3 0 42 0 77.3V416c0 35.3 28.7 64 64 64z"/></svg>',
+            'warning': '<svg class="svg-icon" viewBox="0 0 512 512"><path d="M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512zm0-384c13.3 0 24 10.7 24 24V264c0 13.3-10.7 24-24 24s-24-10.7-24-24V152c0-13.3 10.7-24 24-24zM224 352a32 32 0 1 1 64 0 32 32 0 1 1 -64 0z"/></svg>',
+            'spinner': '<svg class="svg-icon animate-spin" viewBox="0 0 512 512"><path d="M304 48a48 48 0 1 0 -96 0 48 48 0 1 0 96 0zm0 416a48 48 0 1 0 -96 0 48 48 0 1 0 96 0zM48 304a48 48 0 1 0 0-96 48 48 0 1 0 0 96zm464-48a48 48 0 1 0 -96 0 48 48 0 1 0 96 0zM142.9 437A48 48 0 1 0 75 369.1 48 48 0 1 0 142.9 437zm0-294.2A48 48 0 1 0 75 75a48 48 0 1 0 67.9 67.9zM369.1 437A48 48 0 1 0 437 369.1 48 48 0 1 0 369.1 437z"/></svg>',
+            'circle-check': '<svg class="svg-icon" viewBox="0 0 512 512"><path d="M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM369 209L241 337c-9.4 9.4-24.6 9.4-33.9 0l-64-64c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l47 47L335 175c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9z"/></svg>',
+            'triangle-exclamation': '<svg class="svg-icon" viewBox="0 0 512 512"><path d="M256 32c14.2 0 27.3 7.5 34.5 19.8l216 368c7.3 12.4 7.3 27.7 .2 40.1S486.3 480 472 480H40c-14.3 0-27.6-7.7-34.7-20.1s-7.1-27.8 .2-40.1l216-368C228.7 39.5 241.8 32 256 32zm0 128c-13.3 0-24 10.7-24 24V296c0 13.3 10.7 24 24 24s24-10.7 24-24V184c0-13.3-10.7-24-24-24zm32 224a32 32 0 1 0 -64 0 32 32 0 1 0 64 0z"/></svg>',
+            'circle-minus': '<svg class="svg-icon" viewBox="0 0 512 512"><path d="M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM184 232H328c13.3 0 24 10.7 24 24s-10.7 24-24 24H184c-13.3 0-24-10.7-24-24s10.7-24 24-24z"/></svg>',
+            'chevron-down': '<svg class="svg-icon" viewBox="0 0 512 512"><path d="M233.4 406.6c12.5 12.5 32.8 12.5 45.3 0l192-192c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 338.7 86.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l192 192z"/></svg>',
+            'file': '<svg class="svg-icon" viewBox="0 0 384 512"><path d="M0 64C0 28.7 28.7 0 64 0H224V128c0 17.7 14.3 32 32 32H384V448c0 35.3-28.7 64-64 64H64c-35.3 0-64-28.7-64-64V64zm384 64H256V0L384 128z"/></svg>',
+            'gears': '<svg class="svg-icon" viewBox="0 0 640 512"><path d="M308.5 135.3c7.1-6.3 9.9-16.2 6.2-25c-2.3-5.3-4.8-10.5-7.6-15.5L304 89.4c-3-5-6.3-9.9-9.8-14.6c-5.7-7.6-15.7-10.1-24.7-6.8l-39.3 14.4c-17.3-10-36.4-16.9-56.5-20.2l-8.4-41.2c-2-10.2-10.9-17.5-21.3-17.5s-19.3 7.3-21.3 17.5l-8.4 41.2c-20.1 3.3-39.2 10.2-56.5 20.2L18.5 68.1C9.5 64.7-.5 67.3-6.2 74.8C-9.7 79.5-13 84.4-16 89.4L-19.1 94.8c-2.8 5-5.3 10.2-7.6 15.5c-3.7 8.7-.9 18.6 6.2 25l34.5 30.6c-1.4 8.2-2.1 16.6-2.1 25.1s.7 16.9 2.1 25.1l-34.5 30.6c-7.1 6.3-9.9 16.2-6.2 25c2.3 5.3 4.8 10.5 7.6 15.5l3.1 5.4c3 5 6.3 9.9 9.8 14.6c5.7 7.6 15.7 10.1 24.7 6.8l39.3-14.4c17.3 10 36.4 16.9 56.5 20.2l8.4 41.2c2 10.2 10.9 17.5 21.3 17.5s19.3-7.3 21.3-17.5l8.4-41.2c20.1-3.3 39.2-10.2 56.5-20.2l39.3 14.4c9 3.3 19-1 24.7-8.6c3.5-4.7 6.8-9.6 9.8-14.6l3.1-5.4c2.8-5 5.3-10.2 7.6-15.5c3.7-8.7 .9-18.6-6.2-25l-34.5-30.6c1.4-8.2 2.1-16.6 2.1-25.1s-.7-16.9-2.1-25.1l34.5-30.6zM144 208a56 56 0 1 1 0-112 56 56 0 1 1 0 112zm400 64c-8.5 0-16.9 .7-25.1 2.1l-30.6-34.5c-6.3-7.1-16.2-9.9-25-6.2c-5.3 2.3-10.5 4.8-15.5 7.6l-5.4 3.1c-5 3-9.9 6.3-14.6 9.8c-7.6 5.7-10.1 15.7-6.8 24.7l14.4 39.3c-10 17.3-16.9 36.4-20.2 56.5l-41.2 8.4c-10.2 2-17.5 10.9-17.5 21.3s7.3 19.3 17.5 21.3l41.2 8.4c3.3 20.1 10.2 39.2 20.2 56.5l-14.4 39.3c-3.3 9 1 19 8.6 24.7c4.7 3.5 9.6 6.8 14.6 9.8l5.4 3.1c5 2.8 10.2 5.3 15.5 7.6c8.7 3.7 18.6 .9 25-6.2l30.6-34.5c8.2 1.4 16.6 2.1 25.1 2.1s16.9-.7 25.1-2.1l30.6 34.5c6.3 7.1 16.2 9.9 25 6.2c5.3-2.3 10.5-4.8 15.5-7.6l5.4-3.1c5-3 9.9-6.3 14.6-9.8c7.6-5.7 10.1-15.7 6.8-24.7l-14.4-39.3c10-17.3 16.9-36.4 20.2-56.5l41.2-8.4c10.2-2 17.5-10.9 17.5-21.3s-7.3-19.3-17.5-21.3l-41.2-8.4c-3.3-20.1-10.2-39.2-20.2-56.5l14.4-39.3c3.3-9-1-19-8.6-24.7c-4.7-3.5-9.6-6.8-14.6-9.8l-5.4-3.1c-5-2.8-10.2-5.3-15.5-7.6c-8.7-3.7-18.6-.9-25 6.2l-30.6 34.5c-8.2-1.4-16.6-2.1-25.1-2.1zm0 112a56 56 0 1 1 112 0 56 56 0 1 1 -112 0z"/></svg>',
+            'xmark': '<svg class="svg-icon" viewBox="0 0 384 512"><path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/></svg>'
+        };
+
+        function getIcon(name) {
+            return SVG_ICONS[name] || '';
+        }
+
+        function injectIcons() {
+            document.getElementById('icon-header').innerHTML = getIcon('folder-open');
+            document.getElementById('icon-settings').innerHTML = getIcon('sliders');
+            document.getElementById('icon-link').innerHTML = getIcon('link');
+            document.getElementById('icon-scan').innerHTML = getIcon('magnifying-glass');
+            document.getElementById('icon-download').innerHTML = getIcon('download');
+            document.getElementById('icon-warning').innerHTML = getIcon('triangle-exclamation');
+            document.getElementById('icon-folder-plus').innerHTML = getIcon('folder-plus');
+            document.getElementById('icon-zip').innerHTML = getIcon('file-zip');
+            document.getElementById('icon-play').innerHTML = getIcon('play');
+            document.getElementById('icon-stop').innerHTML = getIcon('stop');
+            document.getElementById('icon-list').innerHTML = getIcon('list');
+            document.getElementById('icon-empty-folder').innerHTML = getIcon('folder');
+            document.getElementById('icon-gears').innerHTML = getIcon('gears');
+            document.getElementById('icon-xmark').innerHTML = getIcon('xmark');
+        }
+
+        // ==========================================
+        // CENTRAL SETTINGS DEFAULT VALUES
+        // ==========================================
+        const DEFAULT_SETTINGS = {
+            CORS_PROXY: {
+                value: "", 
+                description: "CORS Proxy URL Template. Replace with https://localhost:5001/?url={TheUrl} if local proxy is active."
+            },
+            CONCURRENT_DOWNLOADS: {
+                value: 4,
+                min: 1,
+                max: 10,
+                description: "Simultaneous download tasks permitted"
+            },
+            GITHUB_TOKEN: {
+                value: "",
+                description: "Optional Token to bypass default API boundaries"
+            },
+            HF_TOKEN: {
+                value: "",
+                description: "Optional Hugging Face User Access Token"
+            }
+        };
+
+        // Local copy of operational parameters loaded into runtime memory
+        let activeSettings = {
+            corsProxy: DEFAULT_SETTINGS.CORS_PROXY.value,
+            concurrentDownloads: DEFAULT_SETTINGS.CONCURRENT_DOWNLOADS.value,
+            githubToken: DEFAULT_SETTINGS.GITHUB_TOKEN.value,
+            hfToken: DEFAULT_SETTINGS.HF_TOKEN.value
+        };
+
+        let currentRepoInfo = null;
+        let discoveredFiles = [];
+        let isDownloading = false;
+        let downloadAbortController = null;
+        const collapsedDirs = new Set();
+
+        window.addEventListener('DOMContentLoaded', () => {
+            injectIcons();
+            initSettingsUI();
+            checkBrowserAPISupport();
+            updateModeVisuals();
+            
+            logConsole("System loaded. Standalone Git & Hugging Face Downloader initialized.", "success");
+            if (!('showDirectoryPicker' in window)) {
+                logConsole("Note: Directory Picker API not supported in this browser. Downloads will fallback to ZIP.", "warning");
+            }
+        });
+
+        function checkBrowserAPISupport() {
+            const unsupportedAlert = document.getElementById('dir-api-unsupported');
+            const folderRadio = document.querySelector('input[name="download_mode"][value="folder"]');
+            const folderLabel = document.getElementById('label-mode-folder');
+            const zipRadio = document.querySelector('input[name="download_mode"][value="zip"]');
+            
+            if (!('showDirectoryPicker' in window)) {
+                unsupportedAlert.classList.remove('hidden');
+                folderRadio.disabled = true;
+                folderLabel.classList.add('disabled');
+                zipRadio.checked = true;
+            }
+        }
+
+        function updateModeVisuals() {
+            const mode = document.querySelector('input[name="download_mode"]:checked').value;
+            const startBtn = document.getElementById('start-download-btn');
+            
+            if (!isDownloading) {
+                if (mode === 'folder') {
+                    startBtn.className = "btn btn-success";
+                } else {
+                    startBtn.className = "btn btn-primary";
+                }
+            }
+        }
+
+        function setDownloadUIState(downloading) {
+            const startBtn = document.getElementById('start-download-btn');
+            const cancelBtn = document.getElementById('cancel-download-btn');
+            const radios = document.querySelectorAll('input[name="download_mode"]');
+            const labels = [document.getElementById('label-mode-folder'), document.getElementById('label-mode-zip')];
+            
+            if (downloading) {
+                startBtn.disabled = true;
+                startBtn.innerHTML = `${getIcon('spinner')} Downloading...`;
+                radios.forEach(r => r.disabled = true);
+                labels.forEach(l => l.classList.add('disabled'));
+                if (cancelBtn) cancelBtn.disabled = false;
+            } else {
+                startBtn.disabled = false;
+                startBtn.innerHTML = `${getIcon('play')} Start Download`;
+                updateModeVisuals(); 
+                
+                labels.forEach(l => l.classList.remove('disabled'));
+                
+                radios.forEach(r => {
+                    if (r.value === 'folder' && !('showDirectoryPicker' in window)) {
+                        r.disabled = true;
+                        document.getElementById('label-mode-folder').classList.add('disabled');
+                    } else {
+                        r.disabled = false;
+                    }
+                });
+                
+                if (cancelBtn) cancelBtn.disabled = true;
+            }
+        }
+
+        function initSettingsUI() {
+            document.getElementById('setting-cors-proxy').value = activeSettings.corsProxy;
+            document.getElementById('setting-concurrent-downloads').value = activeSettings.concurrentDownloads;
+            document.getElementById('threads-label').textContent = activeSettings.concurrentDownloads;
+            document.getElementById('setting-github-token').value = activeSettings.githubToken;
+            document.getElementById('setting-hf-token').value = activeSettings.hfToken;
+        }
+
+        function toggleSettingsModal() {
+            const modal = document.getElementById('settings-modal');
+            modal.classList.toggle('hidden');
+        }
+
+        function updateThreadsLabel(value) {
+            document.getElementById('threads-label').textContent = value;
+        }
+
+        function saveSettingsForm() {
+            activeSettings.corsProxy = document.getElementById('setting-cors-proxy').value.trim();
+            const concurrentVal = parseInt(document.getElementById('setting-concurrent-downloads').value, 10);
+            activeSettings.concurrentDownloads = Math.max(
+                DEFAULT_SETTINGS.CONCURRENT_DOWNLOADS.min, 
+                Math.min(DEFAULT_SETTINGS.CONCURRENT_DOWNLOADS.max, concurrentVal)
+            );
+            activeSettings.githubToken = document.getElementById('setting-github-token').value.trim();
+            activeSettings.hfToken = document.getElementById('setting-hf-token').value.trim();
+
+            logConsole(`Settings updated. Proxy: [${activeSettings.corsProxy || 'Direct Fetch'}], Threads: ${activeSettings.concurrentDownloads}`, "info");
+            toggleSettingsModal();
+        }
+
+        function parseRepoUrl(urlString) {
+            try {
+                const url = new URL(urlString.trim());
+                const hostname = url.hostname.toLowerCase();
+                
+                if (hostname.includes('github.com')) {
+                    const pathParts = url.pathname.split('/').filter(Boolean);
+                    if (pathParts.length < 2) return null;
+                    
+                    const owner = pathParts[0];
+                    const repo = pathParts[1];
+                    let branch = '';
+                    let folderPath = '';
+                    
+                    if (pathParts[2] === 'tree' && pathParts.length > 3) {
+                        branch = pathParts[3];
+                        folderPath = pathParts.slice(4).join('/');
+                    }
+                    
+                    return { platform: 'github', owner, repo, branch, folderPath, originalUrl: urlString };
+                } else if (hostname.includes('huggingface.co')) {
+                    const pathParts = url.pathname.split('/').filter(Boolean);
+                    if (pathParts.length < 1) return null;
+                    
+                    let isDataset = false;
+                    let startIndex = 0;
+                    
+                    if (pathParts[0] === 'datasets') {
+                        isDataset = true;
+                        startIndex = 1;
+                    }
+                    
+                    if (pathParts.length - startIndex < 2) return null;
+                    
+                    const owner = pathParts[startIndex];
+                    const repo = pathParts[startIndex + 1];
+                    let branch = 'main';
+                    let folderPath = '';
+                    
+                    const treeIndex = pathParts.indexOf('tree', startIndex + 2);
+                    if (treeIndex !== -1 && pathParts.length > treeIndex + 1) {
+                        branch = pathParts[treeIndex + 1];
+                        folderPath = pathParts.slice(treeIndex + 2).join('/');
+                    }
+                    
+                    return { platform: isDataset ? 'huggingface-dataset' : 'huggingface', owner, repo, branch, folderPath, originalUrl: urlString };
+                }
+            } catch (err) {
+                return null;
+            }
+            return null;
+        }
+
+        function applyCorsProxy(url) {
+            if (!activeSettings.corsProxy) return url;
+            return activeSettings.corsProxy.replace('{TheUrl}', encodeURIComponent(url));
+        }
+
+        async function startRepositoryScan() {
+            const urlInput = document.getElementById('repo-url').value.trim();
+            if (!urlInput) {
+                logConsole("Error: Please provide a valid URL to scan.", "error");
+                return;
+            }
+
+            const parsed = parseRepoUrl(urlInput);
+            if (!parsed) {
+                logConsole("Error: Invalid Repository link. Supports standard GitHub or Hugging Face directory URLs.", "error");
+                return;
+            }
+
+            currentRepoInfo = parsed;
+            discoveredFiles = [];
+            collapsedDirs.clear();
+            
+            document.getElementById('files-empty-state').classList.add('hidden');
+            document.getElementById('files-list-container').classList.add('hidden');
+            document.getElementById('files-loading-state').classList.remove('hidden');
+            document.getElementById('download-panel').classList.add('hidden');
+            document.getElementById('scanned-summary').classList.add('hidden');
+            document.getElementById('file-selection-controls').classList.add('hidden');
+            
+            logConsole(`Scanning target: ${parsed.platform.toUpperCase()} -> ${parsed.owner}/${parsed.repo} [Branch: ${parsed.branch || 'default'}]`, "info");
+            updateScanProgressText(`Accessing path: ${parsed.folderPath || '/'}`);
+
+            try {
+                if (parsed.platform === 'github') {
+                    await fetchGitHubFolderRecursive(parsed.folderPath);
+                } else {
+                    const isDataset = parsed.platform === 'huggingface-dataset';
+                    await fetchHuggingFaceFolderRecursive(parsed.owner, parsed.repo, parsed.branch, parsed.folderPath, isDataset);
+                }
+                renderDiscoveredFiles();
+                logConsole(`Successfully scanned repo! Resolved ${discoveredFiles.length} files.`, "success");
+            } catch (error) {
+                logConsole(`Scan failed: ${error.message}`, "error");
+                document.getElementById('files-empty-state').classList.remove('hidden');
+            } finally {
+                document.getElementById('files-loading-state').classList.add('hidden');
+            }
+        }
+
+        function updateScanProgressText(text) {
+            document.getElementById('scanning-progress-log').textContent = text;
+        }
+
+        async function fetchGitHubFolderRecursive(path) {
+            const { owner, repo, branch } = currentRepoInfo;
+            const cleanPath = path ? `/${path}` : '';
+            const refParam = branch ? `?ref=${branch}` : '';
+            const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents${cleanPath}${refParam}`;
+            updateScanProgressText(`Scanning subdirectory: ${path || '/'}`);
+            
+            const headers = { 'Accept': 'application/vnd.github.v3+json' };
+            if (activeSettings.githubToken) headers['Authorization'] = `token ${activeSettings.githubToken}`;
+
+            const response = await fetch(applyCorsProxy(apiUrl), { headers });
+            
+            if (response.status === 403) throw new Error("GitHub API rate limit exceeded or access forbidden. Set a GitHub PAT under Settings to increase quota limits.");
+            if (!response.ok) throw new Error(`GitHub Directory fetch failed with status code ${response.status}`);
+
+            const items = await response.json();
+            
+            if (!Array.isArray(items)) {
+                if (items.type === 'file') {
+                    addFileToDatabase(items.path, items.path, items.download_url, items.size);
+                    return;
+                }
+                throw new Error("Target folder did not return array structure.");
+            }
+
+            for (const item of items) {
+                if (item.type === 'file') {
+                    const targetSubFolder = currentRepoInfo.folderPath;
+                    const relativePath = targetSubFolder ? item.path.substring(targetSubFolder.length + 1) : item.path;
+                    addFileToDatabase(relativePath, item.path, item.download_url, item.size);
+                } else if (item.type === 'dir') {
+                    await fetchGitHubFolderRecursive(item.path);
+                }
+            }
+        }
+
+        async function fetchHuggingFaceFolderRecursive(owner, repo, ref, path, isDataset) {
+            const repoType = isDataset ? 'datasets' : 'models';
+            const cleanPath = path ? `/${path}` : '';
+            const apiUrl = `https://huggingface.co/api/${repoType}/${owner}/${repo}/tree/${ref}${cleanPath}`;
+            updateScanProgressText(`Reading Hugging Face folder: ${path || '/'}`);
+
+            const headers = {};
+            if (activeSettings.hfToken) headers['Authorization'] = `Bearer ${activeSettings.hfToken}`;
+
+            const response = await fetch(applyCorsProxy(apiUrl), { headers });
+            if (!response.ok) throw new Error(`Hugging Face API returned HTTP ${response.status}`);
+
+            const items = await response.json();
+            
+            for (const item of items) {
+                if (item.type === 'file') {
+                    const relativePath = currentRepoInfo.folderPath ? item.path.substring(currentRepoInfo.folderPath.length + 1) : item.path;
+                    const platformPrefix = isDataset ? 'datasets/' : '';
+                    const downloadUrl = `https://huggingface.co/${platformPrefix}${owner}/${repo}/resolve/${ref}/${item.path}?download=true`;
+                    addFileToDatabase(relativePath, item.path, downloadUrl, item.size);
+                } else if (item.type === 'directory') {
+                    await fetchHuggingFaceFolderRecursive(owner, repo, ref, item.path, isDataset);
+                }
+            }
+        }
+
+        function addFileToDatabase(relativePath, fullPath, downloadUrl, size) {
+            const id = 'f-' + Math.random().toString(36).substr(2, 9);
+            discoveredFiles.push({
+                id, path: relativePath, fullPath, downloadUrl, size: size || 0, selected: true, status: 'pending'
+            });
+        }
+
+        function renderFileStatusBadge(status, fileId, percent = 0) {
+            switch(status) {
+                case 'downloading':
+                    return `
+                        <div class="flex items-center justify-end gap-1" style="color: var(--brand-light); font-weight: 600;">
+                            <span style="font-size: 0.625rem; font-family: var(--font-mono);">${percent}%</span>
+                            ${getIcon('spinner')}
+                        </div>
+                    `;
+                case 'completed': return `<span style="color: var(--success-light);">${getIcon('circle-check')}</span>`;
+                case 'failed': return `<span style="color: var(--danger-main);">${getIcon('triangle-exclamation')}</span>`;
+                case 'pending':
+                default: return `<span style="color: var(--text-faint);">${getIcon('circle-minus')}</span>`;
+            }
+        }
+
+        function buildTree(files) {
+            const root = { name: '', type: 'directory', path: '', children: {}, files: [] };
+            files.forEach(file => {
+                const parts = file.path.split('/');
+                let current = root;
+                let currentPath = '';
+                for (let i = 0; i < parts.length - 1; i++) {
+                    const part = parts[i];
+                    currentPath = currentPath ? `${currentPath}/${part}` : part;
+                    if (!current.children[part]) {
+                        current.children[part] = { name: part, type: 'directory', path: currentPath, children: {}, files: [] };
+                    }
+                    current = current.children[part];
+                }
+                current.files.push(file);
+            });
+            return root;
+        }
+
+        function getDirStats(dirNode) {
+            let totalSize = 0, selectedCount = 0, totalCount = 0;
+            dirNode.files.forEach(f => {
+                totalSize += f.size;
+                totalCount++;
+                if (f.selected) selectedCount++;
+            });
+            Object.values(dirNode.children).forEach(child => {
+                const stats = getDirStats(child);
+                totalSize += stats.totalSize; totalCount += stats.totalCount; selectedCount += stats.selectedCount;
+            });
+            return { totalSize, totalCount, selectedCount };
+        }
+
+        function renderTreeNode(node, depth = 0) {
+            let html = '';
+            const indent = depth * 16; 
+            const sortedDirs = Object.values(node.children).sort((a, b) => a.name.localeCompare(b.name));
+            
+            sortedDirs.forEach(dir => {
+                const stats = getDirStats(dir);
+                const isAllSelected = stats.selectedCount === stats.totalCount;
+                const dirId = 'dir-' + dir.path.replace(/[^a-zA-Z0-9-]/g, '_');
+                const isCollapsed = collapsedDirs.has(dir.path);
+                
+                html += `
+                    <div class="tree-row tree-row-dir">
+                        <div class="flex items-center justify-between transition" style="padding: 0.5rem 1rem 0.5rem ${indent + 12}px;">
+                            <div class="flex items-center gap-2 min-w-0 flex-grow" style="overflow: hidden;">
+                                <button onclick="toggleDirCollapse('${dirId}', '${dir.path.replace(/'/g, "\\'")}')" 
+                                    style="background: none; border: none; color: var(--text-faint); cursor: pointer; display: flex; align-items: center; justify-content: center; width: 1.5rem; height: 1.5rem; border-radius: 0.25rem;">
+                                    <span id="arrow-${dirId}" style="transition: transform 0.15s; font-size: 0.625rem; display: inline-block; ${isCollapsed ? 'transform: rotate(-90deg);' : ''}">${getIcon('chevron-down')}</span>
+                                </button>
+                                <input type="checkbox" id="check-${dirId}" ${isAllSelected ? 'checked' : ''} onchange="toggleDirSelection('${dir.path.replace(/'/g, "\\'")}', this.checked)">
+                                <span style="color: var(--text-muted); display: flex; align-items: center;">${getIcon('folder')}</span>
+                                <span class="font-semibold truncate font-mono" style="font-size: 0.6875rem; color: var(--text-secondary);" title="${dir.path}">${dir.name}</span>
+                            </div>
+                            <div class="flex items-center gap-4 text-[10px] font-mono flex-shrink-0" style="color: var(--text-faint);">
+                                <span style="width: 5rem; text-align: right;">${formatBytes(stats.totalSize)}</span>
+                                <span style="width: 6rem; text-align: right;"></span>
+                            </div>
+                        </div>
+                        <div id="children-${dirId}" style="${isCollapsed ? 'display: none;' : ''}">
+                            ${renderTreeNode(dir, depth + 1)}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            const sortedFiles = node.files.sort((a, b) => a.path.split('/').pop().localeCompare(b.path.split('/').pop()));
+
+            sortedFiles.forEach(file => {
+                html += `
+                    <div class="tree-row tree-row-file flex flex-col">
+                        <div class="flex items-center justify-between" style="padding: 0.5rem 1rem 0.5rem ${indent + 36}px;">
+                            <div class="flex items-center gap-3 min-w-0 flex-grow" style="overflow: hidden;">
+                                <input type="checkbox" id="check-${file.id}" ${file.selected ? 'checked' : ''} onchange="toggleFileSelection('${file.id}', this.checked)">
+                                <span style="color: var(--text-faint); display: flex; align-items: center;">${getIcon('file')}</span>
+                                <span class="truncate font-mono" style="font-size: 0.6875rem; color: var(--text-secondary);" title="${file.path}">${file.path.split('/').pop()}</span>
+                            </div>
+                            <div class="flex items-center gap-4 font-mono flex-shrink-0" style="font-size: 0.6875rem;">
+                                <span style="width: 5rem; text-align: right; color: var(--text-muted);">${formatBytes(file.size)}</span>
+                                <div style="width: 6rem; text-align: right;" id="status-container-${file.id}">
+                                    ${renderFileStatusBadge(file.status, file.id)}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div id="progress-details-${file.id}" class="hidden" style="padding-bottom: 0.75rem; padding-right: 1rem; padding-left: ${indent + 64}px;">
+                            <div class="flex items-center justify-between" style="font-size: 0.625rem; color: var(--text-muted); margin-bottom: 0.25rem;">
+                                <span id="progress-bytes-${file.id}" class="font-mono">0 B / 0 B</span>
+                                <span class="flex items-center gap-1 font-mono">
+                                    <span id="progress-speed-${file.id}" style="color: var(--brand-light); font-weight: 600;">0 KB/s</span>
+                                    <span style="color: var(--text-faint);">|</span>
+                                    <span id="progress-eta-${file.id}" style="color: var(--text-secondary);">ETA: --</span>
+                                </span>
+                            </div>
+                            <div class="progress-track" style="height: 0.375rem;">
+                                <div id="progress-bar-${file.id}" class="progress-fill"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            return html;
+        }
+
+        function renderDiscoveredFiles() {
+            const treeRoot = document.getElementById('files-tree-root');
+            treeRoot.innerHTML = '';
+
+            if (discoveredFiles.length === 0) {
+                document.getElementById('files-empty-state').classList.remove('hidden');
+                return;
+            }
+
+            const rootNode = buildTree(discoveredFiles);
+            treeRoot.innerHTML = renderTreeNode(rootNode, 0);
+
+            updateTreeCheckboxesAndSummary();
+
+            document.getElementById('files-list-container').classList.remove('hidden');
+            document.getElementById('download-panel').classList.remove('hidden');
+            document.getElementById('scanned-summary').classList.remove('hidden');
+            document.getElementById('file-selection-controls').classList.remove('hidden');
+        }
+
+        function toggleDirCollapse(dirId, dirPath) {
+            const childrenContainer = document.getElementById(`children-${dirId}`);
+            const arrow = document.getElementById(`arrow-${dirId}`);
+            if (childrenContainer && arrow) {
+                const isHidden = childrenContainer.style.display === 'none';
+                childrenContainer.style.display = isHidden ? 'block' : 'none';
+                arrow.style.transform = isHidden ? 'rotate(0deg)' : 'rotate(-90deg)';
+                
+                if (!isHidden) {
+                    collapsedDirs.add(dirPath);
+                } else {
+                    collapsedDirs.delete(dirPath);
+                }
+            }
+        }
+
+        function toggleDirSelection(dirPath, checked) {
+            discoveredFiles.forEach(file => {
+                if (file.path === dirPath || file.path.startsWith(dirPath + '/')) {
+                    file.selected = checked;
+                    const checkbox = document.getElementById(`check-${file.id}`);
+                    if (checkbox) checkbox.checked = checked;
+                }
+            });
+            updateTreeCheckboxesAndSummary();
+        }
+
+        function toggleFileSelection(id, checked) {
+            const file = discoveredFiles.find(f => f.id === id);
+            if (file) file.selected = checked;
+            updateTreeCheckboxesAndSummary();
+        }
+
+        function updateTreeCheckboxesAndSummary() {
+            updateSelectedSummary();
+            if (discoveredFiles.length === 0) return;
+            
+            const root = buildTree(discoveredFiles);
+            
+            function updateNodeStates(node) {
+                Object.values(node.children).forEach(dir => {
+                    const stats = getDirStats(dir);
+                    const isAllSelected = stats.selectedCount === stats.totalCount;
+                    const isNoneSelected = stats.selectedCount === 0;
+                    const isIndeterminate = !isAllSelected && !isNoneSelected;
+                    
+                    const dirId = 'dir-' + dir.path.replace(/[^a-zA-Z0-9-]/g, '_');
+                    const checkbox = document.getElementById(`check-${dirId}`);
+                    if (checkbox) {
+                        checkbox.checked = isAllSelected;
+                        checkbox.indeterminate = isIndeterminate;
+                    }
+                    updateNodeStates(dir);
+                });
+            }
+            
+            updateNodeStates(root);
+            
+            const totalSelected = discoveredFiles.filter(f => f.selected).length;
+            const masterCheckbox = document.getElementById('master-select');
+            if (masterCheckbox) {
+                masterCheckbox.checked = totalSelected === discoveredFiles.length;
+                masterCheckbox.indeterminate = totalSelected > 0 && totalSelected < discoveredFiles.length;
+            }
+        }
+
+        function toggleAllFiles(checked) {
+            discoveredFiles.forEach(f => {
+                f.selected = checked;
+                const checkbox = document.getElementById(`check-${f.id}`);
+                if (checkbox) checkbox.checked = checked;
+            });
+            const masterCheckbox = document.getElementById('master-select');
+            if (masterCheckbox) masterCheckbox.checked = checked;
+            renderDiscoveredFiles();
+        }
+
+        function toggleMasterCheckbox(checkbox) {
+            toggleAllFiles(checkbox.checked);
+        }
+
+        function updateSelectedSummary() {
+            const selected = discoveredFiles.filter(f => f.selected);
+            const totalSize = selected.reduce((sum, f) => sum + f.size, 0);
+
+            document.getElementById('selected-count-badge').textContent = `${selected.length} / ${discoveredFiles.length} selected`;
+            document.getElementById('summary-total-files').textContent = discoveredFiles.length;
+            document.getElementById('summary-total-size').textContent = formatBytes(totalSize);
+        }
+
+        function startSelectedDownloadMode() {
+            if (isDownloading) return;
+            const selectedMode = document.querySelector('input[name="download_mode"]:checked').value;
+            if (selectedMode === 'folder') initiateFolderDownload();
+            else if (selectedMode === 'zip') initiateZipDownload();
+        }
+
+        async function initiateFolderDownload() {
+            const selectedFiles = discoveredFiles.filter(f => f.selected);
+            if (selectedFiles.length === 0) {
+                logConsole("Error: No files selected for download.", "warning");
+                return;
+            }
+
+            let directoryHandle;
+            try {
+                logConsole("Prompting local output directory permission handle...", "info");
+                directoryHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+                logConsole(`Local output directory configured: [${directoryHandle.name}]`, "success");
+            } catch (err) {
+                logConsole(`Directory selection aborted: ${err.message}`, "warning");
+                return;
+            }
+
+            prepareDownloadMonitor(selectedFiles.length);
+            setDownloadUIState(true);
+            
+            await runDownloadWorkers(selectedFiles, async (file, blob) => {
+                const fileHandle = await createLocalFileHandleRecursively(directoryHandle, file.path);
+                const writable = await fileHandle.createWritable();
+                await writable.write(blob);
+                await writable.close();
+            });
+            
+            setDownloadUIState(false);
+        }
+
+        async function createLocalFileHandleRecursively(rootDir, relativePath) {
+            const pathParts = relativePath.split('/');
+            let currentDir = rootDir;
+            for (let i = 0; i < pathParts.length - 1; i++) {
+                currentDir = await currentDir.getDirectoryHandle(pathParts[i], { create: true });
+            }
+            const fileName = pathParts[pathParts.length - 1];
+            return await currentDir.getFileHandle(fileName, { create: true });
+        }
+
+        async function initiateZipDownload() {
+            const selectedFiles = discoveredFiles.filter(f => f.selected);
+            if (selectedFiles.length === 0) {
+                logConsole("Error: No files selected to compile ZIP.", "warning");
+                return;
+            }
+
+            const zip = new JSZip(); 
+            prepareDownloadMonitor(selectedFiles.length);
+            setDownloadUIState(true);
+
+            logConsole("Starting background file caching inside in-memory ZIP package...", "info");
+
+            await runDownloadWorkers(selectedFiles, (file, blob) => {
+                zip.file(file.path, blob);
+            });
+
+            if (downloadAbortController && downloadAbortController.signal.aborted) {
+                logConsole("ZIP assembly canceled by operational user.", "warning");
+                setDownloadUIState(false);
+                return;
+            }
+
+            try {
+                updateGlobalDownloadStatus("Compressing & compiling ZIP file structure...", 98);
+                logConsole("Packing finalized zip file system, generating download prompt...", "info");
+                
+                const zipContent = await zip.generateAsync({ type: 'blob' }, (metadata) => {
+                    const currentPercent = Math.round(metadata.percent);
+                    updateGlobalDownloadStatus(`Compiling archive structure... (${currentPercent}%)`, 90 + (currentPercent / 10));
+                });
+
+                const zipFileName = `${currentRepoInfo.repo || 'repository'}-folder-download.zip`;
+                triggerBlobSaveAs(zipContent, zipFileName);
+                
+                logConsole(`ZIP package download successfully launched as: ${zipFileName}`, "success");
+                updateGlobalDownloadStatus("Completed", 100);
+            } catch (err) {
+                logConsole(`Failed generating zip document target: ${err.message}`, "error");
+                updateGlobalDownloadStatus("Zip Compilation Error", 100);
+            } finally {
+                setDownloadUIState(false);
+            }
+        }
+
+        function triggerBlobSaveAs(blob, fileName) {
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            setTimeout(() => URL.revokeObjectURL(link.href), 10000);
+        }
+
+        async function runDownloadWorkers(fileList, fileSaveCallback) {
+            isDownloading = true;
+            downloadAbortController = new AbortController();
+            
+            const totalToDownload = fileList.length;
+            let currentFileIndex = 0;
+            let successCount = 0;
+            let failureCount = 0;
+            let totalBytesTransferred = 0;
+            const startTime = Date.now();
+
+            fileList.forEach(f => {
+                f.status = 'pending';
+                updateFileRowStatus(f.id, 'pending');
+            });
+
+            async function worker() {
+                while (currentFileIndex < totalToDownload) {
+                    if (downloadAbortController.signal.aborted) break;
+                    
+                    const fileToFetch = fileList[currentFileIndex++];
+                    
+                    try {
+                        updateFileRowStatus(fileToFetch.id, 'downloading', 0, 0, fileToFetch.size, 0);
+                        fileToFetch.status = 'downloading';
+                        
+                        logConsole(`Retrieving: [${fileToFetch.path}] (${formatBytes(fileToFetch.size)})`);
+
+                        const blob = await fetchSingleFileWithProgress(fileToFetch, (percent, bytesLoaded, totalBytes, fileSpeed) => {
+                            updateFileRowStatus(fileToFetch.id, 'downloading', percent, bytesLoaded, totalBytes, fileSpeed);
+                        });
+
+                        if (downloadAbortController.signal.aborted) {
+                            fileToFetch.status = 'failed';
+                            updateFileRowStatus(fileToFetch.id, 'failed');
+                            failureCount++;
+                            break;
+                        }
+
+                        await fileSaveCallback(fileToFetch, blob);
+
+                        fileToFetch.status = 'completed';
+                        updateFileRowStatus(fileToFetch.id, 'completed');
+                        successCount++;
+                        totalBytesTransferred += fileToFetch.size || blob.size;
+
+                    } catch (err) {
+                        if (err.name === 'AbortError') {
+                            logConsole(`Canceled downloading file: ${fileToFetch.path}`, "warning");
+                        } else {
+                            logConsole(`Error downloading [${fileToFetch.path}]: ${err.message}`, "error");
+                        }
+                        fileToFetch.status = 'failed';
+                        updateFileRowStatus(fileToFetch.id, 'failed');
+                        failureCount++;
+                    }
+
+                    const elapsedSeconds = (Date.now() - startTime) / 1000;
+                    const byteRate = elapsedSeconds > 0 ? (totalBytesTransferred / elapsedSeconds) : 0;
+                    
+                    document.getElementById('stats-speed').textContent = `${formatBytes(byteRate)}/s`;
+                    document.getElementById('stats-downloaded').textContent = `${successCount + failureCount} / ${totalToDownload}`;
+
+                    const globalPercentage = Math.round(((successCount + failureCount) / totalToDownload) * 100);
+                    updateGlobalDownloadStatus(`Progress: ${successCount + failureCount} of ${totalToDownload}`, globalPercentage);
+                }
+            }
+
+            const threadPool = [];
+            const activeThreadsCount = Math.min(activeSettings.concurrentDownloads, totalToDownload);
+            
+            for (let i = 0; i < activeThreadsCount; i++) {
+                threadPool.push(worker());
+            }
+
+            await Promise.all(threadPool);
+            
+            isDownloading = false;
+            if (downloadAbortController.signal.aborted) {
+                logConsole(`Operations cancelled. Successfully downloaded ${successCount} files. (${failureCount} failed).`, "warning");
+                updateGlobalDownloadStatus("Cancelled", 0);
+            } else {
+                logConsole(`Download session completed! Successfully saved ${successCount} files. (${failureCount} errors).`, "success");
+                updateGlobalDownloadStatus("Completed Successfully", 100);
+            }
+        }
+
+        async function fetchSingleFileWithProgress(file, progressCallback) {
+            const headers = {};
+            if (currentRepoInfo.platform === 'github' && activeSettings.githubToken) {
+                headers['Authorization'] = `token ${activeSettings.githubToken}`;
+            } else if (currentRepoInfo.platform.startsWith('huggingface') && activeSettings.hfToken) {
+                headers['Authorization'] = `Bearer ${activeSettings.hfToken}`;
+            }
+
+            const proxiedUrl = applyCorsProxy(file.downloadUrl);
+            const response = await fetch(proxiedUrl, { headers, signal: downloadAbortController.signal });
+
+            if (!response.ok) throw new Error(`HTTP ${response.status} resolving target file address.`);
+
+            const contentLength = response.headers.get('content-length');
+            const totalBytes = contentLength ? parseInt(contentLength, 10) : file.size;
+
+            const reader = response.body.getReader();
+            const chunks = [];
+            let loadedBytes = 0;
+            
+            let lastTime = Date.now();
+            let lastLoaded = 0;
+            let currentSpeed = 0;
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                chunks.push(value);
+                loadedBytes += value.length;
+
+                const now = Date.now();
+                const timeDiff = (now - lastTime) / 1000;
+                
+                if (timeDiff >= 0.3) {
+                    currentSpeed = (loadedBytes - lastLoaded) / timeDiff;
+                    lastTime = now;
+                    lastLoaded = loadedBytes;
+                }
+
+                if (totalBytes > 0) {
+                    const percent = Math.min(100, Math.round((loadedBytes / totalBytes) * 100));
+                    progressCallback(percent, loadedBytes, totalBytes, currentSpeed);
+                } else {
+                    progressCallback(0, loadedBytes, 0, currentSpeed);
+                }
+            }
+
+            return new Blob(chunks);
+        }
+
+        function updateFileRowStatus(fileId, status, percent = 0, loadedBytes = 0, totalBytes = 0, speed = 0) {
+            const container = document.getElementById(`status-container-${fileId}`);
+            if (container) container.innerHTML = renderFileStatusBadge(status, fileId, percent);
+
+            const progressDetails = document.getElementById(`progress-details-${fileId}`);
+            if (!progressDetails) return;
+
+            if (status === 'downloading') {
+                progressDetails.classList.remove('hidden');
+                
+                const bytesText = document.getElementById(`progress-bytes-${fileId}`);
+                if (bytesText) bytesText.textContent = `${formatBytes(loadedBytes)} / ${formatBytes(totalBytes)}`;
+
+                const speedText = document.getElementById(`progress-speed-${fileId}`);
+                if (speedText) speedText.textContent = speed > 0 ? `${formatBytes(speed)}/s` : 'connecting...';
+
+                const etaText = document.getElementById(`progress-eta-${fileId}`);
+                if (etaText) {
+                    if (speed > 0 && totalBytes > loadedBytes) {
+                        const remainingSeconds = (totalBytes - loadedBytes) / speed;
+                        etaText.textContent = `ETA: ${formatDuration(remainingSeconds)}`;
+                    } else {
+                        etaText.textContent = `ETA: --`;
+                    }
+                }
+
+                const progressBar = document.getElementById(`progress-bar-${fileId}`);
+                if (progressBar) progressBar.style.width = `${percent}%`;
+            } else {
+                progressDetails.classList.add('hidden');
+            }
+        }
+
+        function formatDuration(seconds) {
+            if (seconds === Infinity || isNaN(seconds) || seconds < 0) return '--';
+            if (seconds < 60) return `${Math.round(seconds)}s`;
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.round(seconds % 60);
+            return `${mins}m ${secs}s`;
+        }
+
+        function prepareDownloadMonitor(totalToDownload) {
+            document.getElementById('download-monitor').classList.remove('hidden');
+            document.getElementById('stats-downloaded').textContent = `0 / ${totalToDownload}`;
+            document.getElementById('stats-speed').textContent = "0 KB/s";
+            updateGlobalDownloadStatus("Starting connection arrays...", 0);
+        }
+
+        function updateGlobalDownloadStatus(statusText, percent) {
+            document.getElementById('download-status-text').textContent = statusText;
+            document.getElementById('download-progress-percent').textContent = `${percent}%`;
+            document.getElementById('download-progress-bar').style.width = `${percent}%`;
+        }
+
+        function cancelActiveDownloads() {
+            if (downloadAbortController) {
+                logConsole("Sending cancellation signals to current download tasks...", "warning");
+                downloadAbortController.abort();
+            }
+        }
+
+        function formatBytes(bytes, decimals = 2) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        }
+
+        function logConsole(message, type = 'info') {
+            const consoleBox = document.getElementById('console-log');
+            const timeString = new Date().toLocaleTimeString();
+            
+            let color = 'var(--text-secondary)';
+            let prefix = '⚙️';
+            
+            if (type === 'success') { color = 'var(--success-light)'; prefix = '✔'; } 
+            else if (type === 'warning') { color = 'var(--warning-main)'; prefix = '⚠'; } 
+            else if (type === 'error') { color = 'var(--danger-main)'; prefix = '✘'; }
+
+            const logElement = document.createElement('div');
+            logElement.style.padding = '0.125rem 0';
+            logElement.style.color = color;
+            logElement.innerHTML = `<span style="color: var(--text-faint); font-family: var(--font-mono);">[${timeString}]</span> <span style="font-weight: 700; margin-right: 0.25rem;">${prefix}</span> ${escapeHTML(message)}`;
+            
+            consoleBox.appendChild(logElement);
+            consoleBox.scrollTop = consoleBox.scrollHeight;
+        }
+
+        function escapeHTML(text) {
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+
+        function clearConsoleLog() {
+            document.getElementById('console-log').innerHTML = `<div style="color: var(--text-faint);">// Console log cleared.</div>`;
+        }
+
+        function copyConsoleLog() {
+            const consoleBox = document.getElementById('console-log');
+            const tempArea = document.createElement('textarea');
+            tempArea.value = consoleBox.innerText;
+            document.body.appendChild(tempArea);
+            tempArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempArea);
+            logConsole("Console history copied to clipboard.", "success");
+        }
+    </script>
+</body>
+</html>
