@@ -46,4 +46,6 @@ Fetch all the repositories for a particular user/organization, with the ability 
 A tool to more easily find and verify authenticity of GitHub accounts owned by large companies who don't list all their official accounts anywhere.
 <p align="center"><img width="799" alt="image" src="https://github.com/user-attachments/assets/69226a1a-7d6a-40bb-bec5-46cc7afeb918" /></p>
 
+### [GitHub + HuggingFace Folder Downloader](Tools/GitHub%20Tools/GitHub%20%2B%20HuggingFace%20Folder%20Downloader.html)
+Put in a GitHub or HuggingFace URL for a specific folder within a repo and you can download all (or a selection) of all the files in that directory at once.
 
